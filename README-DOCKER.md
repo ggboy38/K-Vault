@@ -104,7 +104,7 @@ curl -i -X POST "http://localhost:8080/api/auth/login" \
     - `sqlite` (`app_settings` table)
     - `redis` (Upstash / Redis / KVrocks compatible via Redis protocol)
   - Encrypted storage secrets (`CONFIG_ENCRYPTION_KEY`)
-  - Multi-backend adapters: Telegram / R2 / S3 / Discord / HuggingFace
+  - Multi-backend adapters: Telegram / R2 / S3 / Discord / HuggingFace / WebDAV / GitHub / Google Drive / OneDrive
 - `web`: Nginx static host + reverse proxy
   - `/api/*` -> backend
   - `/upload` -> backend
@@ -129,13 +129,17 @@ Persistent data is stored in Docker volume `kvault_data` (and `kvault_redis` whe
 | `UPLOAD_MAX_SIZE` | Global upload limit (bytes), default 100MB |
 | `UPLOAD_SMALL_FILE_THRESHOLD` | Switch threshold for direct/chunk upload |
 | `CHUNK_SIZE` | Chunk size in bytes |
-| `DEFAULT_STORAGE_TYPE` | Bootstrap storage type |
+| `DEFAULT_STORAGE_TYPE` | Bootstrap storage type (`telegram`/`r2`/`s3`/`discord`/`huggingface`/`webdav`/`github`/`gdrive`/`onedrive`) |
 | `SETTINGS_STORE` | `sqlite` (default) or `redis` for basic app settings |
 | `SETTINGS_REDIS_URL` | Redis URL, for Upstash/Redis/KVrocks (required if `SETTINGS_STORE=redis`) |
 | `SETTINGS_REDIS_PREFIX` | Redis key prefix, default `k-vault` |
 | `SETTINGS_REDIS_CONNECT_TIMEOUT_MS` | Redis connect/ping timeout (ms), default `5000` |
 | `TG_BOT_TOKEN` + `TG_CHAT_ID` | Telegram bootstrap storage |
-| `R2_*` / `S3_*` / `DISCORD_*` / `HF_*` | Optional bootstrap configs for other backends |
+| `R2_*` / `S3_*` / `DISCORD_*` / `HF_*` | Optional bootstrap configs for existing backends |
+| `WEBDAV_*` | WebDAV bootstrap config (`WEBDAV_BASE_URL`, auth, optional root path) |
+| `GITHUB_*` | GitHub bootstrap config (`repo`, `token`, `mode`, optional `release tag`/`prefix`) |
+| `GDRIVE_*` | Google Drive bootstrap config (`folderId`, service account or token) |
+| `ONEDRIVE_*` | OneDrive bootstrap config (access token or Graph client credentials) |
 
 ## Security Notes
 
@@ -150,10 +154,47 @@ Supported query parameters:
 - `limit` (or `pageSize` / `size`): items per page, default `100`, max `1000`
 - `cursor` (or `offset`): next offset returned by previous response
 - `page` (or `current`): page number (1-based), used when `cursor` is not provided
-- `storage`: `all`/`telegram`/`r2`/`s3`/`discord`/`huggingface`
+- `storage`: `all`/`telegram`/`r2`/`s3`/`discord`/`huggingface`/`webdav`/`github`/`gdrive`/`onedrive`
 - `search`: fuzzy match on file name and id
 - `listType` (or `list_type`): `all`/`None`/`White`/`Block`
 - `includeStats` (or `stats`): `1|true|yes` to include summary stats
+
+## New Storage Notes
+
+- WebDAV adapter supports `PUT`/`GET`/`DELETE` and auto `MKCOL`; connection test uses `OPTIONS` then `PROPFIND`.
+- GitHub adapter supports two modes:
+  - `releases`: preferred for binary files and larger payloads.
+  - `contents`: best for small files/text and has tighter API write/size/rate constraints.
+- Google Drive adapter minimal mode:
+  - Recommended: service account + shared folder (`folderId` required).
+  - Supports `upload`/`download`/`delete`/`testConnection`.
+- OneDrive adapter minimal mode:
+  - Supports Graph access token mode and client-credentials mode.
+  - In client-credentials mode, `driveId` is required.
+
+## Regression Checklist
+
+Automated script:
+
+```bash
+npm run regression:storage
+```
+
+Optional create/update smoke config:
+
+```bash
+BASE_URL=http://localhost:8080 \
+BASIC_USER=admin BASIC_PASS=your_password \
+SMOKE_STORAGE_TYPE=webdav \
+SMOKE_STORAGE_CONFIG_JSON='{"baseUrl":"https://dav.example.com","username":"u","password":"p"}' \
+node scripts/storage-regression.js
+```
+
+The script covers:
+- `health` / `status`
+- `login` (both payloads)
+- `storage` list/create/update/test/default
+- `upload/download/delete` on enabled storages
 
 ## Deployment Notes
 

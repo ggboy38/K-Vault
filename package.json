@@ -11,7 +11,8 @@
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
     "docker:up": "npm run docker:init-env && docker compose up -d --build",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "regression:storage": "node scripts/storage-regression.js"
   },
   "dependencies": {
     "@cloudflare/pages-plugin-sentry": "^1.1.3",

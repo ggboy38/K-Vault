@@ -52,7 +52,17 @@ function buildPublicFileId(storageType, fileName, mimeType) {
 
 function normalizeStorageType(type) {
   const normalized = String(type || '').trim().toLowerCase();
-  const supported = ['telegram', 'r2', 's3', 'discord', 'huggingface'];
+  const supported = [
+    'telegram',
+    'r2',
+    's3',
+    'discord',
+    'huggingface',
+    'webdav',
+    'github',
+    'gdrive',
+    'onedrive',
+  ];
   if (supported.includes(normalized)) return normalized;
   return 'telegram';
 }

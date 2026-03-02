@@ -155,7 +155,17 @@ class FileRepository {
     const rows = all(this.db, `SELECT storage_type, file_name FROM files ${whereClause}`, params);
 
     const byType = { image: 0, video: 0, audio: 0, document: 0 };
-    const byStorage = { telegram: 0, r2: 0, s3: 0, discord: 0, huggingface: 0 };
+    const byStorage = {
+      telegram: 0,
+      r2: 0,
+      s3: 0,
+      discord: 0,
+      huggingface: 0,
+      webdav: 0,
+      github: 0,
+      gdrive: 0,
+      onedrive: 0,
+    };
 
     rows.forEach((row) => {
       const ext = String(row.file_name || '').split('.').pop().toLowerCase();

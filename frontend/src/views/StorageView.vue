@@ -1,24 +1,40 @@
-<template>
-  <section class="card panel">
-    <div class="panel-head">
-      <h2>Storage Manager</h2>
-      <button class="btn" @click="resetForm">New Config</button>
+ï»¿<template>
+  <section class="card panel storage-panel">
+    <div class="panel-head storage-head">
+      <div>
+        <h2>Storage Config</h2>
+        <p class="muted">Manage backend profiles, test connectivity, and switch default target.</p>
+      </div>
+      <button class="btn btn-ghost" @click="resetForm">New Config</button>
     </div>
 
-    <div class="storage-grid">
-      <article class="storage-list">
+    <div class="storage-layout">
+      <article class="storage-list card-lite">
         <h3>Configured Backends</h3>
-        <ul class="list" v-if="items.length">
-          <li v-for="item in items" :key="item.id" class="storage-item">
-            <div>
-              <strong>{{ item.name }}</strong>
-              <p class="muted">{{ item.type }} ¡¤ {{ item.enabled ? 'enabled' : 'disabled' }}</p>
-              <p class="muted" v-if="item.isDefault">Default storage</p>
+        <ul v-if="items.length" class="list storage-listing">
+          <li v-for="item in items" :key="item.id" class="storage-row">
+            <div class="storage-row-main">
+              <div class="storage-row-top">
+                <strong>{{ item.name }}</strong>
+                <span class="badge">{{ getStorageLabel(item.type) }}</span>
+                <span class="badge" :class="item.enabled ? 'badge-ok' : 'badge-danger'">
+                  {{ item.enabled ? 'Enabled' : 'Disabled' }}
+                </span>
+                <span class="badge" v-if="item.isDefault">Default</span>
+              </div>
+              <p class="muted">ID: {{ item.id }}</p>
+              <p v-if="testResults[item.id]" class="storage-test" :class="testResults[item.id].connected ? 'ok' : 'fail'">
+                {{ formatTestMessage(testResults[item.id]) }}
+              </p>
             </div>
+
             <div class="storage-actions">
               <button class="btn btn-ghost" @click="editItem(item)">Edit</button>
               <button class="btn btn-ghost" @click="testItem(item.id)">Test</button>
-              <button class="btn btn-ghost" @click="setDefault(item.id)">Set Default</button>
+              <button class="btn btn-ghost" @click="toggleEnabled(item)">
+                {{ item.enabled ? 'Disable' : 'Enable' }}
+              </button>
+              <button class="btn btn-ghost" @click="setDefault(item.id)" :disabled="item.isDefault">Set Default</button>
               <button class="btn btn-danger" @click="removeItem(item.id)">Delete</button>
             </div>
           </li>
@@ -26,8 +42,9 @@
         <p v-else class="muted">No storage config yet.</p>
       </article>
 
-      <article class="storage-form">
+      <article class="storage-editor card-lite">
         <h3>{{ editingId ? 'Edit Storage' : 'Create Storage' }}</h3>
+
         <form class="form-grid" @submit.prevent="submit">
           <label>
             Name
@@ -36,12 +53,8 @@
 
           <label>
             Type
-            <select v-model="form.type" @change="hydrateConfigDefaults">
-              <option value="telegram">Telegram</option>
-              <option value="r2">R2</option>
-              <option value="s3">S3</option>
-              <option value="discord">Discord</option>
-              <option value="huggingface">HuggingFace</option>
+            <select v-model="form.type" @change="onTypeChanged">
+              <option v-for="type in STORAGE_TYPES" :key="type.value" :value="type.value">{{ type.label }}</option>
             </select>
           </label>
 
@@ -50,23 +63,56 @@
             <label><input v-model="form.isDefault" type="checkbox" /> Set as default</label>
           </div>
 
-          <label v-for="field in currentFields" :key="field.key">
-            {{ field.label }}
-            <input
-              v-model.trim="form.config[field.key]"
-              :type="field.secret ? 'password' : 'text'"
-              :placeholder="field.placeholder"
-              :required="field.required"
-            />
-          </label>
+          <div class="field-grid">
+            <label v-for="field in currentFields" :key="field.key">
+              <span>{{ field.label }}</span>
+
+              <select
+                v-if="field.input === 'select'"
+                v-model="form.config[field.key]"
+                :required="field.required"
+              >
+                <option
+                  v-for="option in field.options || []"
+                  :key="`${field.key}-${option.value}`"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+
+              <textarea
+                v-else-if="field.input === 'textarea'"
+                v-model="form.config[field.key]"
+                :placeholder="field.placeholder"
+                :required="field.required"
+                rows="4"
+              ></textarea>
+
+              <input
+                v-else
+                v-model.trim="form.config[field.key]"
+                :type="field.secret ? 'password' : 'text'"
+                :placeholder="field.placeholder"
+                :required="field.required"
+              />
+            </label>
+          </div>
+
+          <p v-if="STORAGE_NOTES[form.type]" class="muted">{{ STORAGE_NOTES[form.type] }}</p>
 
           <div class="form-actions">
-            <button class="btn" :disabled="saving">{{ saving ? 'Saving...' : 'Save' }}</button>
-            <button class="btn btn-ghost" type="button" @click="testDraft" :disabled="testing">
-              {{ testing ? 'Testing...' : 'Test Current Config' }}
+            <button class="btn" :disabled="saving">{{ saving ? 'Saving...' : 'Save Config' }}</button>
+            <button class="btn btn-ghost" type="button" :disabled="testing" @click="testDraftConfig">
+              {{ testing ? 'Testing...' : 'Test Draft' }}
             </button>
           </div>
         </form>
+
+        <div v-if="draftTest" class="test-detail" :class="draftTest.connected ? 'ok' : 'fail'">
+          <strong>{{ draftTest.connected ? 'Draft connection successful' : 'Draft connection failed' }}</strong>
+          <pre>{{ stringifyDetail(draftTest) }}</pre>
+        </div>
       </article>
     </div>
 
@@ -77,7 +123,22 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
-import { apiFetch } from '../api/client';
+import {
+  createStorageConfig,
+  deleteStorageConfig,
+  listStorageConfigs,
+  setDefaultStorageConfig,
+  testStorageConfigById,
+  testStorageDraft,
+  updateStorageConfig,
+} from '../api/storage';
+import {
+  STORAGE_FIELDS,
+  STORAGE_NOTES,
+  STORAGE_TYPES,
+  getStorageFields,
+  getStorageLabel,
+} from '../config/storage-definitions';
 
 const items = ref([]);
 const editingId = ref('');
@@ -85,37 +146,8 @@ const saving = ref(false);
 const testing = ref(false);
 const message = ref('');
 const error = ref('');
-
-const FIELD_DEFS = {
-  telegram: [
-    { key: 'botToken', label: 'Bot Token', required: true, secret: true, placeholder: '123456:ABC...' },
-    { key: 'chatId', label: 'Chat ID', required: true, placeholder: '-100xxxx' },
-    { key: 'apiBase', label: 'API Base', required: false, placeholder: 'https://api.telegram.org' },
-  ],
-  r2: [
-    { key: 'endpoint', label: 'Endpoint', required: true, placeholder: 'https://xxxx.r2.cloudflarestorage.com' },
-    { key: 'region', label: 'Region', required: false, placeholder: 'auto' },
-    { key: 'bucket', label: 'Bucket', required: true, placeholder: 'bucket-name' },
-    { key: 'accessKeyId', label: 'Access Key ID', required: true, secret: true, placeholder: 'AKIA...' },
-    { key: 'secretAccessKey', label: 'Secret Access Key', required: true, secret: true, placeholder: '******' },
-  ],
-  s3: [
-    { key: 'endpoint', label: 'Endpoint', required: true, placeholder: 'https://s3.example.com' },
-    { key: 'region', label: 'Region', required: true, placeholder: 'us-east-1' },
-    { key: 'bucket', label: 'Bucket', required: true, placeholder: 'bucket-name' },
-    { key: 'accessKeyId', label: 'Access Key ID', required: true, secret: true, placeholder: 'AKIA...' },
-    { key: 'secretAccessKey', label: 'Secret Access Key', required: true, secret: true, placeholder: '******' },
-  ],
-  discord: [
-    { key: 'webhookUrl', label: 'Webhook URL', required: false, secret: true, placeholder: 'https://discord.com/api/webhooks/...' },
-    { key: 'botToken', label: 'Bot Token', required: false, secret: true, placeholder: 'Bot token' },
-    { key: 'channelId', label: 'Channel ID', required: false, placeholder: 'channel id' },
-  ],
-  huggingface: [
-    { key: 'token', label: 'HF Token', required: true, secret: true, placeholder: 'hf_xxx' },
-    { key: 'repo', label: 'Dataset Repo', required: true, placeholder: 'username/repo' },
-  ],
-};
+const draftTest = ref(null);
+const testResults = reactive({});
 
 const form = reactive({
   name: '',
@@ -125,28 +157,36 @@ const form = reactive({
   config: {},
 });
 
-const currentFields = computed(() => FIELD_DEFS[form.type] || []);
+const currentFields = computed(() => getStorageFields(form.type));
 
 onMounted(async () => {
+  form.config = buildConfigByType(form.type);
   await loadItems();
-  hydrateConfigDefaults();
 });
 
-function hydrateConfigDefaults() {
-  const existing = { ...(form.config || {}) };
-  const next = {};
-  for (const field of currentFields.value) {
-    next[field.key] = existing[field.key] ?? '';
+function buildConfigByType(type, source = {}) {
+  const fields = STORAGE_FIELDS[type] || [];
+  const target = {};
+  for (const field of fields) {
+    if (source[field.key] != null) {
+      target[field.key] = source[field.key];
+      continue;
+    }
+    if (field.input === 'select') {
+      target[field.key] = field.options?.[0]?.value || '';
+      continue;
+    }
+    target[field.key] = '';
   }
-  form.config = next;
+  return target;
 }
 
 async function loadItems() {
+  error.value = '';
   try {
-    const data = await apiFetch('/api/storage/list');
-    items.value = data.items || [];
+    items.value = await listStorageConfigs();
   } catch (err) {
-    error.value = err.message;
+    error.value = err.message || 'Failed to load storage configs.';
   }
 }
 
@@ -156,10 +196,14 @@ function resetForm() {
   form.type = 'telegram';
   form.enabled = true;
   form.isDefault = false;
-  form.config = {};
-  hydrateConfigDefaults();
+  form.config = buildConfigByType('telegram');
+  draftTest.value = null;
   message.value = '';
   error.value = '';
+}
+
+function onTypeChanged() {
+  form.config = buildConfigByType(form.type, form.config);
 }
 
 function editItem(item) {
@@ -168,10 +212,20 @@ function editItem(item) {
   form.type = item.type;
   form.enabled = Boolean(item.enabled);
   form.isDefault = Boolean(item.isDefault);
-  form.config = { ...(item.config || {}) };
-  hydrateConfigDefaults();
+  form.config = buildConfigByType(item.type, item.config || {});
+  draftTest.value = null;
   message.value = '';
   error.value = '';
+}
+
+function buildPayload() {
+  return {
+    name: form.name,
+    type: form.type,
+    enabled: Boolean(form.enabled),
+    isDefault: Boolean(form.isDefault),
+    config: { ...form.config },
+  };
 }
 
 async function submit() {
@@ -180,34 +234,18 @@ async function submit() {
   message.value = '';
 
   try {
-    const payload = {
-      name: form.name,
-      type: form.type,
-      enabled: form.enabled,
-      isDefault: form.isDefault,
-      config: { ...form.config },
-    };
-
+    const payload = buildPayload();
     if (editingId.value) {
-      await apiFetch(`/api/storage/${encodeURIComponent(editingId.value)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      await updateStorageConfig(editingId.value, payload);
       message.value = 'Storage config updated.';
     } else {
-      await apiFetch('/api/storage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      message.value = 'Storage config created.';
+      await createStorageConfig(payload);
+      const successMessage = 'Storage config created.';
+      resetForm();
+      message.value = successMessage;
     }
 
     await loadItems();
-    if (!editingId.value) {
-      resetForm();
-    }
   } catch (err) {
     error.value = err.message || 'Save failed';
   } finally {
@@ -215,22 +253,17 @@ async function submit() {
   }
 }
 
-async function testDraft() {
+async function testDraftConfig() {
   testing.value = true;
   error.value = '';
   message.value = '';
 
   try {
-    const data = await apiFetch('/api/storage/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: form.type,
-        config: form.config,
-      }),
-    });
-    message.value = data.result?.connected ? 'Connection succeeded.' : 'Connection failed.';
+    const result = await testStorageDraft(form.type, { ...form.config });
+    draftTest.value = result || { connected: false };
+    message.value = result?.connected ? 'Draft test succeeded.' : 'Draft test failed.';
   } catch (err) {
+    draftTest.value = null;
     error.value = err.message || 'Connection test failed';
   } finally {
     testing.value = false;
@@ -240,29 +273,44 @@ async function testDraft() {
 async function testItem(id) {
   error.value = '';
   message.value = '';
+
   try {
-    const data = await apiFetch(`/api/storage/${encodeURIComponent(id)}/test`, {
-      method: 'POST',
-    });
-    message.value = data.result?.connected
-      ? `Storage ${id} connected.`
-      : `Storage ${id} test failed.`;
+    const result = await testStorageConfigById(id);
+    testResults[id] = {
+      ...(result || {}),
+      testedAt: Date.now(),
+    };
+    message.value = result?.connected ? 'Connection successful.' : 'Connection failed.';
   } catch (err) {
-    error.value = err.message;
+    error.value = err.message || 'Storage test failed';
+  }
+}
+
+async function toggleEnabled(item) {
+  error.value = '';
+  message.value = '';
+
+  try {
+    await updateStorageConfig(item.id, {
+      enabled: !item.enabled,
+    });
+    message.value = 'Storage status updated.';
+    await loadItems();
+  } catch (err) {
+    error.value = err.message || 'Update failed';
   }
 }
 
 async function setDefault(id) {
   error.value = '';
   message.value = '';
+
   try {
-    await apiFetch(`/api/storage/default/${encodeURIComponent(id)}`, {
-      method: 'POST',
-    });
+    await setDefaultStorageConfig(id);
     message.value = 'Default storage updated.';
     await loadItems();
   } catch (err) {
-    error.value = err.message;
+    error.value = err.message || 'Set default failed';
   }
 }
 
@@ -271,13 +319,32 @@ async function removeItem(id) {
 
   error.value = '';
   message.value = '';
+
   try {
-    await apiFetch(`/api/storage/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await deleteStorageConfig(id);
     message.value = 'Storage config deleted.';
     await loadItems();
-    if (editingId.value === id) resetForm();
+
+    if (editingId.value === id) {
+      resetForm();
+    }
   } catch (err) {
-    error.value = err.message;
+    error.value = err.message || 'Delete failed';
+  }
+}
+
+function formatTestMessage(result) {
+  const statusText = result.connected ? 'Connected' : 'Failed';
+  const statusCode = result.status ? ` (HTTP ${result.status})` : '';
+  const detail = result.detail ? ` - ${String(result.detail)}` : '';
+  return `${statusText}${statusCode}${detail}`;
+}
+
+function stringifyDetail(data) {
+  try {
+    return JSON.stringify(data, null, 2);
+  } catch {
+    return String(data || '');
   }
 }
 </script>

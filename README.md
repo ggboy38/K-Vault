@@ -539,3 +539,43 @@ MIT License
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=katelya77/K-Vault&type=Date)](https://star-history.com/#katelya77/K-Vault&Date)
+
+## Docker Storage Backend Update (2026-03)
+
+Docker runtime now includes additional storage adapters:
+
+- `webdav`
+- `github` (`releases` mode and `contents` mode)
+- `gdrive` (minimal: service account + shared folder)
+- `onedrive` (minimal: Graph access token or client credentials)
+
+Key notes:
+
+- All dynamic storage secrets are still encrypted by `CONFIG_ENCRYPTION_KEY`.
+- `/api/status` now reports `webdav/github/gdrive/onedrive` as individual `connected/enabled` states.
+- GitHub mode guidance:
+  - `releases`: preferred for binary files.
+  - `contents`: better for small files/text, subject to tighter API constraints.
+
+Regression helper script:
+
+```bash
+npm run regression:storage
+```
+
+Optional smoke create/update test:
+
+```bash
+BASE_URL=http://localhost:8080 \
+BASIC_USER=admin BASIC_PASS=your_password \
+SMOKE_STORAGE_TYPE=webdav \
+SMOKE_STORAGE_CONFIG_JSON='{"baseUrl":"https://dav.example.com","username":"u","password":"p"}' \
+node scripts/storage-regression.js
+```
+
+Checklist covered by script:
+
+- `health` / `status`
+- `login` with both payloads (`username/password`, `user/pass`)
+- storage `list/create/update/test/default`
+- `upload/download/delete` for enabled storages

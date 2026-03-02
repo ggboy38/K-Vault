@@ -385,6 +385,10 @@ function createApp() {
       s3: { connected: false, enabled: false, message: 'Not configured' },
       discord: { connected: false, enabled: false, message: 'Not configured' },
       huggingface: { connected: false, enabled: false, message: 'Not configured' },
+      webdav: { connected: false, enabled: false, message: 'Not configured' },
+      github: { connected: false, enabled: false, message: 'Not configured' },
+      gdrive: { connected: false, enabled: false, message: 'Not configured' },
+      onedrive: { connected: false, enabled: false, message: 'Not configured' },
       auth: {
         enabled: authService.isAuthRequired(),
         message: authService.isAuthRequired() ? 'Password auth enabled' : 'No auth required',
@@ -401,6 +405,10 @@ function createApp() {
       s3: storageRepo.findEnabledByType('s3')[0],
       discord: storageRepo.findEnabledByType('discord')[0],
       huggingface: storageRepo.findEnabledByType('huggingface')[0],
+      webdav: storageRepo.findEnabledByType('webdav')[0],
+      github: storageRepo.findEnabledByType('github')[0],
+      gdrive: storageRepo.findEnabledByType('gdrive')[0],
+      onedrive: storageRepo.findEnabledByType('onedrive')[0],
     };
 
     for (const [type, storageConfig] of Object.entries(byType)) {
@@ -411,7 +419,9 @@ function createApp() {
         status[type] = {
           connected: Boolean(result.connected),
           enabled: Boolean(result.connected),
-          message: result.connected ? `Connected (${storageConfig.name})` : 'Connection failed',
+          message: result.connected
+            ? `Connected (${storageConfig.name})`
+            : (result.detail ? `Connection failed: ${result.detail}` : 'Connection failed'),
         };
       } catch (error) {
         status[type] = {

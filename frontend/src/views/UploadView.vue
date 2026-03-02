@@ -77,6 +77,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { apiFetch, getApiBase } from '../api/client';
+import { STORAGE_TYPES, getStorageLabel, storageEnabledFromStatus } from '../config/storage-definitions';
 
 const picker = ref(null);
 const dragActive = ref(false);
@@ -93,19 +94,14 @@ const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024;
 const SMALL_FILE_THRESHOLD = 20 * 1024 * 1024;
 
 const modes = computed(() => {
-  const fallback = [{ value: 'telegram', label: 'Telegram' }];
+  const fallback = [{ value: 'telegram', label: getStorageLabel('telegram') }];
   if (!status.value) return fallback;
 
-  const items = [
-    { value: 'telegram', label: 'Telegram', enabled: !!status.value.telegram?.connected },
-    { value: 'r2', label: 'R2', enabled: !!(status.value.r2?.connected && status.value.r2?.enabled) },
-    { value: 's3', label: 'S3', enabled: !!(status.value.s3?.connected && status.value.s3?.enabled) },
-    { value: 'discord', label: 'Discord', enabled: !!(status.value.discord?.connected && status.value.discord?.enabled) },
-    { value: 'huggingface', label: 'HuggingFace', enabled: !!(status.value.huggingface?.connected && status.value.huggingface?.enabled) },
-  ];
+  const enabled = STORAGE_TYPES
+    .filter((item) => storageEnabledFromStatus(status.value, item.value))
+    .map((item) => ({ value: item.value, label: item.label }));
 
-  const enabled = items.filter((x) => x.enabled);
-  return enabled.length ? enabled.map(({ value, label }) => ({ value, label })) : fallback;
+  return enabled.length ? enabled : fallback;
 });
 
 const currentStorageLabel = computed(() => {

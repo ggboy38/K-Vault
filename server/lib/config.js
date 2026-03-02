@@ -84,6 +84,38 @@ function loadConfig(env = process.env) {
         token: env.HF_TOKEN || '',
         repo: env.HF_REPO || '',
       },
+      webdav: {
+        baseUrl: env.WEBDAV_BASE_URL || '',
+        username: env.WEBDAV_USERNAME || '',
+        password: env.WEBDAV_PASSWORD || '',
+        bearerToken: env.WEBDAV_BEARER_TOKEN || '',
+        rootPath: env.WEBDAV_ROOT_PATH || '',
+      },
+      github: {
+        repo: env.GITHUB_REPO || '',
+        token: env.GITHUB_TOKEN || '',
+        mode: (env.GITHUB_MODE || 'releases').toLowerCase(),
+        prefix: env.GITHUB_PREFIX || env.GITHUB_PATH || '',
+        releaseTag: env.GITHUB_RELEASE_TAG || '',
+        branch: env.GITHUB_BRANCH || '',
+        apiBase: env.GITHUB_API_BASE || 'https://api.github.com',
+      },
+      gdrive: {
+        folderId: env.GDRIVE_FOLDER_ID || '',
+        prefix: env.GDRIVE_PREFIX || env.GDRIVE_PATH || '',
+        accessToken: env.GDRIVE_ACCESS_TOKEN || '',
+        serviceAccountEmail: env.GDRIVE_SERVICE_ACCOUNT_EMAIL || env.GDRIVE_CLIENT_EMAIL || '',
+        privateKey: env.GDRIVE_PRIVATE_KEY || '',
+        tokenUri: env.GDRIVE_TOKEN_URI || 'https://oauth2.googleapis.com/token',
+      },
+      onedrive: {
+        accessToken: env.ONEDRIVE_ACCESS_TOKEN || '',
+        tenantId: env.ONEDRIVE_TENANT_ID || '',
+        clientId: env.ONEDRIVE_CLIENT_ID || '',
+        clientSecret: env.ONEDRIVE_CLIENT_SECRET || '',
+        driveId: env.ONEDRIVE_DRIVE_ID || '',
+        folderPath: env.ONEDRIVE_FOLDER_PATH || '',
+      },
     },
   };
 }

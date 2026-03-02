@@ -6,11 +6,7 @@
         <input v-model.trim="search" placeholder="Search file name or id" @keyup.enter="reload" />
         <select v-model="storageFilter" @change="reload">
           <option value="all">All Storage</option>
-          <option value="telegram">Telegram</option>
-          <option value="r2">R2</option>
-          <option value="s3">S3</option>
-          <option value="discord">Discord</option>
-          <option value="huggingface">HuggingFace</option>
+          <option v-for="type in STORAGE_TYPES" :key="type.value" :value="type.value">{{ type.label }}</option>
         </select>
         <button class="btn" @click="reload">Refresh</button>
       </div>
@@ -87,6 +83,7 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import { apiFetch, absoluteFileUrl } from '../api/client';
+import { STORAGE_TYPES } from '../config/storage-definitions';
 
 const files = ref([]);
 const nextCursor = ref(null);
