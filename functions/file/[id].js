@@ -96,8 +96,7 @@ export async function onRequest(context) {
   const storageType = inferStorageType(fileId, record?.metadata || {});
   let response;
   if (storageType === 'r2') {
-  const r2Key = record?.metadata?.r2Key || (fileId.startsWith('r2:') ? fileId.slice(3) : fileId);
-  response = await handleR2File(context, r2Key, record);
+  response = await handleR2File(context, record?.metadata?.r2Key || fileId, record);
   } else if (storageType === 's3') {
     response = await handleS3File(context, fileId, record);
   } else if (storageType === 'discord') {
