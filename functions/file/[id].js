@@ -468,32 +468,11 @@ async function handleR2File(context, r2Key, record = null) {
   }
 
 const headers = new Headers();
-addCorsHeaders(headers);
- 
-// 使用 R2 对象的 httpMetadata 中的 contentType（如果有的话）
-const objectContentType = object.httpMetadata?.contentType || mimeType;
-headers.set('Content-Type', objectContentType);
+addResponseHeaders(headers, fileName, mimeType);
 headers.set('Content-Length', String(object.size));
  
-// 设置文件名
-if (fileName) {
-  const encoded = encodeURIComponent(fileName);
-  headers.set('Content-Disposition', `inline; filename="${encoded}"; filename*=UTF-8''${encoded}`);
-}
- 
-// Range 请求返回 206，否则返回 200
-const status = (rangeHeader && object.range) ? 206 : 200;
- 
-// 如果是 206 响应，设置 Content-Range
-if (status === 206 && object.range) {
-  headers.set('Content-Range', object.range);
-  headers.set('Accept-Ranges', 'bytes');
-}
- 
-headers.set('Cache-Control', 'no-store, max-age=0');
- 
 return new Response(object.body, {
-  status,
+  status: 200,
   headers,
 });
 }
